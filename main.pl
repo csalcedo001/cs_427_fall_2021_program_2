@@ -1,0 +1,1 @@
+solve(Puzzle, Strategy).
