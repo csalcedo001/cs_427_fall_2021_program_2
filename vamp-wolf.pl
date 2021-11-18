@@ -6,6 +6,9 @@ arange(N, L) :-
     arange(N1, L1),
     append(L1, [N1], L).
 
+contains([Value | _], Value).
+contains([_ | List], Value) :- contains(List, Value).
+
 
 %%% Environment rules
 action_space_add(vamp_wolf, L0, W, V, WDiff, VDiff, Action, L1) :-
@@ -30,19 +33,34 @@ action_space(vamp_wolf, State, Actions) :-
     action_space_add(vamp_wolf, A3, W, V, 0, 2, 3, A4),
     action_space_add(vamp_wolf, A4, W, V, 1, 1, 4, Actions).
 
-same(vamp_wolf, StateA, StateB) :-
+equivalent(vamp_wolf, StateA, StateB) :-
     StateA == StateB.
 
-% TODO: Consider different order of elements in list
 is_terminal(vamp_wolf, State) :-
-    [WW, VW, _, _, _] = State,
-    WW == 0, VW == 0.
+    equivalent(vamp_wolf, State, [0, 0, 3, 3, east]);
+    equivalent(vamp_wolf, State, [0, 0, 3, 3, west]).
 
 get_start(vamp_wolf, Start) :-
     Start = [3, 3, 0, 0, west].
 
-observe(vamp_wolf, State, Action, NextState, Done) :-
-    true.
+observe(vamp_wolf, State, Action, NextState) :-
+    [WW, VW, WE, VE, B] = State,
+    action_space(vamp_wolf, State, ActionSpace),
+    contains(ActionSpace, Action),
+    ((B == west, Sign = 1, BNext = east);
+    (B == east, Sign = -1, BNext = west)),
+    (
+        (Action == 0, [C0, C1] = [1, 0]);
+        (Action == 1, [C0, C1] = [0, 1]);
+        (Action == 2, [C0, C1] = [2, 0]);
+        (Action == 3, [C0, C1] = [0, 2]);
+        (Action == 4, [C0, C1] = [1, 1])
+    ),
+    WW2 is WW - C0 * Sign,
+    VW2 is VW - C1 * Sign,
+    WE2 is WE + C0 * Sign,
+    VE2 is VE + C1 * Sign,
+    NextState = [WW2, VW2, WE2, VE2, BNext].
 
 % step(vamp_wolf, State, Action, NextState) :-
 %     [East, West, BoatSide] = State,
@@ -60,10 +78,10 @@ insert(Heuristic, PQ, State, PQNext) :-
     append(PQ, [State], PQNext).
 
 % Main search method
-search(Puzzle, BFS, Path).
+% search(Puzzle, BFS, Path).
 search(Puzzle, Heuristic, Path) :-
     get_start(Puzzle, State),
-    PriorityQueue = [State],
+    PQ = [State],
     search_recur(Puzzle, Heuristic, PQ, Path).
 
 % Auxiliary recursive search method
@@ -87,7 +105,7 @@ search_recur(Puzzle, Heuristic, PQ, Path) :-
     
 search_for_loop(Puzzle, Heuristic, State, [], PQ, []).
 search_for_loop(Puzzle, Heuristic, State, [Action | RestActionSpace], PQ, NewPQ) :-
-    observe(Puzzle, State, Action, NextState, _),
+    observe(Puzzle, State, Action, NextState),
     % TODO: Replace append by Heuristic
     insert(Heuristic, PQ, NextState, PQ1),
     search_for_loop(Puzzle, Heuristic, State, RestActionSpace, PQ1, NewPQ).
