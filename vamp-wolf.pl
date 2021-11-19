@@ -9,6 +9,9 @@ arange(N, L) :-
 contains([Value | _], Value).
 contains([_ | List], Value) :- contains(List, Value).
 
+get_parent(Child, [[Child, Parent] | _], Parent).
+get_parent(Child, [_ | RestParents], Parent) :- get_parent(Child, RestParents, Parent).
+
 
 %%% Environment rules
 action_space_add(vamp_wolf, L0, W, V, WDiff, VDiff, Action, L1) :-
@@ -82,30 +85,65 @@ insert(Heuristic, PQ, State, PQNext) :-
 search(Puzzle, Heuristic, Path) :-
     get_start(Puzzle, State),
     PQ = [State],
-    search_recur(Puzzle, Heuristic, PQ, Path).
+    Visited = [State],
+    Parents = [],
+    search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents),
+    write(Path), nl.
 
 % Auxiliary recursive search method
-search_recur(Puzzle, Heuristic, [], []).
-search_recur(Puzzle, Heuristic, PQ, Path) :-
+search_recur(Puzzle, Heuristic, [], Visited, [], Parents).
+search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents) :-
     length(PQ, N),
     N > 0,
-    [State | NextPQ] = PQ,
+    [State | PQ2] = PQ,
+    % write(State), nl, nl,
     (
         (
             is_terminal(Puzzle, State),
-            Path is [State]
+            Path = [State]
         );
         (
-            action_space(Puzzle, ActionSpace),
-            search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ, NextPQ),
-            search_recur(Puzzle, Heuristic, NextPQ, PrevPath),
-            append(PrevPath, [State], Path)
+            action_space(Puzzle, State, ActionSpace),
+            search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ2, PQ3, Visited, Visited2, Parents, Parents2),
+            search_recur(Puzzle, Heuristic, PQ3, Visited2, PrevPath, Parents2),
+            % write(PQ3), write(" "),
+            % nl,
+            (
+                (
+                    ((length(PrevPath, M), M == 0) ; 
+                    [LastState | _] = PrevPath,
+                    get_parent(LastState, Parents2, State)),
+                    append([State], PrevPath, Path)
+                );(
+                    Path = PrevPath
+                )
+            )
         )
     ).
     
-search_for_loop(Puzzle, Heuristic, State, [], PQ, []).
-search_for_loop(Puzzle, Heuristic, State, [Action | RestActionSpace], PQ, NewPQ) :-
+search_for_loop(Puzzle, Heuristic, State, [], PQ, PQ, Visited, Visited, Parents, Parents).
+search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ, NextPQ, Visited, NextVisited, Parents, NextParents) :-
+    [Action | RestActionSpace] = ActionSpace,
     observe(Puzzle, State, Action, NextState),
-    % TODO: Replace append by Heuristic
-    insert(Heuristic, PQ, NextState, PQ1),
-    search_for_loop(Puzzle, Heuristic, State, RestActionSpace, PQ1, NewPQ).
+    ((
+        not(member(NextState, Visited)),
+        append(Visited, [NextState], Visited2),
+        append(Parents, [[NextState, State]], Parents2),
+        insert(Heuristic, PQ, NextState, PQ1)
+    );(
+        Visited2 = Visited,
+        PQ1 = PQ,
+        Parents2 = Parents
+    )),
+    % write(State), write(" "),
+    % write(Action), write(" "),
+    % write(Visited), write(" "),
+    % write(RestActionSpace), write(" "),
+    % write(PQ), write(" "),
+    % write(PQ1), write(" "),
+    % write(Parents), write(" "),
+    % nl,
+    % nl,
+    search_for_loop(Puzzle, Heuristic, State, RestActionSpace, PQ1, NextPQ, Visited2, NextVisited, Parents2, NextParents).
+    % write(NextPQ), nl.
+
