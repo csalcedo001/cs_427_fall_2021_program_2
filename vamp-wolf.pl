@@ -1,11 +1,4 @@
 %%% General purpose rules
-arange(0, []).
-arange(N, L) :-
-    N > 0,
-    N1 is N - 1,
-    arange(N1, L1),
-    append(L1, [N1], L).
-
 get_parent(Child, [[Child, Parent] | _], Parent).
 get_parent(Child, [_ | RestParents], Parent) :- get_parent(Child, RestParents, Parent).
 
@@ -62,23 +55,13 @@ observe(vamp_wolf, State, Action, NextState) :-
     VE2 is VE + C1 * Sign,
     NextState = [WW2, VW2, WE2, VE2, BNext].
 
-% step(vamp_wolf, State, Action, NextState) :-
-%     [East, West, BoatSide] = State,
-%     (
-%         (BoatSide == e, Set is East);
-%         (BoatSide == w, Set is West)
-%     ),
-%     length(Set, N),
-%     Action >= 0, Action < N,
-
 
 %%% Search method rules
 insert(Heuristic, PQ, State, PQNext) :-
-    % TODO: insert element to queue according to heuristic
-    append(PQ, [State], PQNext).
+    [_, HeurInsert | Params] = Heuristic,
+    call(HeurInsert, Params, PQ, State, PQNext).
 
 % Main search method
-% search(Puzzle, BFS, Path).
 search(Puzzle, Heuristic, Path) :-
     get_start(Puzzle, State),
     PQ = [State],
@@ -144,3 +127,16 @@ search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ, NextPQ, Visited, Next
     search_for_loop(Puzzle, Heuristic, State, RestActionSpace, PQ1, NextPQ, Visited2, NextVisited, Parents2, NextParents).
     % write(NextPQ), nl.
 
+bfs_insert(_, PQ, State, NextPQ) :-
+    append(PQ, [State], NextPQ).
+
+dfs_insert(_, PQ, State, NextPQ) :-
+    append([State], PQ, NextPQ).
+
+best_fs_insert([Heur], PQ, State, NextPQ) :-
+    % TODO: Implment insert
+    NextPQ = PQ.
+
+init_heuristic(bfs, [bfs, bfs_insert]).
+init_heuristic(dfs, [dfs, dfs_insert]).
+init_heuristic(best_fs, Heur, [best_fs, best_fs_insert, Heur]).
