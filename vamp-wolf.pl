@@ -6,9 +6,6 @@ arange(N, L) :-
     arange(N1, L1),
     append(L1, [N1], L).
 
-contains([Value | _], Value).
-contains([_ | List], Value) :- contains(List, Value).
-
 get_parent(Child, [[Child, Parent] | _], Parent).
 get_parent(Child, [_ | RestParents], Parent) :- get_parent(Child, RestParents, Parent).
 
@@ -18,7 +15,7 @@ action_space_add(vamp_wolf, L0, W, V, WDiff, VDiff, Action, L1) :-
     WNew is W - WDiff,
     VNew is V - VDiff,
     (
-        WNew >= 0, VNew >= 0,
+        WNew >= 0, VNew >= 0, VNew >= WNew,
         append(L0, [Action], L1)
     );
     (
@@ -49,7 +46,7 @@ get_start(vamp_wolf, Start) :-
 observe(vamp_wolf, State, Action, NextState) :-
     [WW, VW, WE, VE, B] = State,
     action_space(vamp_wolf, State, ActionSpace),
-    contains(ActionSpace, Action),
+    member(Action, ActionSpace),
     ((B == west, Sign = 1, BNext = east);
     (B == east, Sign = -1, BNext = west)),
     (
