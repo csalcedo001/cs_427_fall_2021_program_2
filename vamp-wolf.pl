@@ -2,8 +2,61 @@
 get_parent(Child, [[Child, Parent] | _], Parent).
 get_parent(Child, [_ | RestParents], Parent) :- get_parent(Child, RestParents, Parent).
 
+swap_x(Matrix, Y, Low, High, NextMatrix) :-
+    swap_x_recur_j(Matrix, 0, 3, Y, Low, High, NextMatrix).
+
+swap_x_recur_j(Matrix, I, J, Y, Low, High, NextMatrix) :-
+    [Row | RestMatrix] = Matrix,
+    J2 is J - 1,
+    swap_x_recur_j(RestMatrix, I, J2, Y, Low, High, RestNextMatrix),
+    NextMatrix = [Row | RestNextMatrix].
+
+swap_x_recur_j(Matrix, I, Y, Y, Low, High, NextMatrix) :-
+    [Row | RestMatrix] = Matrix,
+    swap_x_recur_i(Row, I, Low, High, NextRow),
+    NextMatrix = [NextRow | RestMatrix].
+
+swap_x_recur_i(Row, I, Low, High, NextRow) :-
+    [Val | RestRow] = Row,
+    I2 is I + 1,
+    swap_x_recur_i(RestRow, I2, Low, High, RestNextRow),
+    NextRow = [Val | RestNextRow].
+
+swap_x_recur_i(Row, Low, Low, _, NextRow) :-
+    [V0, V1 | RestRow] = Row,
+    NextRow = [V1, V0 | RestRow].
+
+swap_y(Matrix, X, Low, High, NextMatrix) :-
+    swap_y_recur_j(Matrix, 0, 3, X, Low, High, NextMatrix).
+
+swap_y_recur_j(Matrix, I, J, X, Low, High, NextMatrix) :-
+    [Row | RestMatrix] = Matrix,
+    J2 is J - 1,
+    swap_y_recur_j(RestMatrix, I, J2, X, Low, High, RestNextMatrix),
+    NextMatrix = [Row | RestNextMatrix].
+
+swap_y_recur_j(Matrix, I, High, X, _, High, NextMatrix) :-
+    [Row1, Row2 | RestMatrix] = Matrix,
+    swap_y_recur_i(Row1, Row2, I, X, NextRow1, NextRow2),
+    NextMatrix = [NextRow1, NextRow2 | RestMatrix].
+
+swap_y_recur_i(Row1, Row2, I, X, NextRow1, NextRow2) :-
+    [V1 | RestRow1] = Row1,
+    [V2 | RestRow2] = Row2,
+    I2 is I + 1,
+    swap_y_recur_i(RestRow1, RestRow2, I2, X, RestNextRow1, RestNextRow2),
+    NextRow1 = [V1 | RestNextRow1],
+    NextRow2 = [V2 | RestNextRow2].
+
+swap_y_recur_i(Row1, Row2, X, X, NextRow1, NextRow2) :-
+    [V1 | RestRow1] = Row1,
+    [V2 | RestRow2] = Row2,
+    NextRow1 = [V2 | RestRow1],
+    NextRow2 = [V1 | RestRow2].
+
 
 %%% Environment rules
+%% vamp_wolf environment
 action_space_add(vamp_wolf, L0, W, V, WDiff, VDiff, Action, L1) :-
     WNew is W - WDiff,
     VNew is V - VDiff,
@@ -55,6 +108,49 @@ observe(vamp_wolf, State, Action, NextState) :-
     VE2 is VE + C1 * Sign,
     NextState = [WW2, VW2, WE2, VE2, BNext].
 
+%% sliding_tile environment
+action_space(sliding_tile, State, Actions) :-
+    [Matrix, [X, Y]] = State,
+    [Row | _] = Matrix,
+    length(Matrix, N),
+    length(Row, M),
+    X1 is X - 1,
+    X2 is X + 1,
+    Y1 is Y - 1,
+    Y2 is Y + 1,
+    A0 = [],
+    (
+        ((Y2 < N, append(A0, [0], A1)) ; A1 = A0),
+        ((X2 < M, append(A1, [1], A2)) ; A2 = A1),
+        ((Y1 >= 0, append(A2, [2], A3)) ; A3 = A2),
+        ((X1 >= 0, append(A3, [3], Actions)) ; Actions = A3)
+    ).
+
+equivalent(sliding_tile, StateA, StateB) :-
+    StateA == StateB.
+
+is_terminal(sliding_tile, State) :-
+    equivalent(sliding_tile, State, [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, _]]).
+
+get_start(sliding_tile, Start) :-
+    Matrix = [[12, 1, 2, 15], [11, 6, 5, 8], [7, 10, 9, 4], [16, 13, 14, 3]],
+    Start = [Matrix, [0, 0]].
+
+observe(sliding_tile, State, Action, NextState) :-
+    [Matrix, [X, Y]] = State,
+    (
+        (Action == 0, Axis = y, Low is Y, High is Y + 1, NextX is X, NextY is Y + 1);
+        (Action == 1, Axis = x, Low is X, High is X + 1, NextX is X + 1, NextY is Y);
+        (Action == 2, Axis = y, Low is Y - 1, High is Y, NextX is X, NextY is Y - 1);
+        (Action == 3, Axis = x, Low is X - 1, High is X, NextX is X - 1, NextY is Y)
+    ),
+    (
+        (Axis = x, swap_x(Matrix, Y, Low, High, NextMatrix));
+        (Axis = y, swap_y(Matrix, X, Low, High, NextMatrix))
+    ),
+    NextState = [NextMatrix, [NextX, NextY]].
+    
+
 
 %%% Search method rules
 insert(Heuristic, PQ, State, PQNext) :-
@@ -63,20 +159,23 @@ insert(Heuristic, PQ, State, PQNext) :-
 
 % Main search method
 search(Puzzle, Heuristic, Path) :-
-    get_start(Puzzle, State),
-    PQ = [State],
-    Visited = [State],
+    get_start(Puzzle, Start),
+    search(Puzzle, Heuristic, Start, Path).
+
+search(Puzzle, Heuristic, Start, Path) :-
+    PQ = [Start],
+    Visited = [Start],
     Parents = [],
     search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents),
     write(Path), nl.
 
 % Auxiliary recursive search method
-search_recur(Puzzle, Heuristic, [], Visited, [], Parents).
+search_recur(_, _, [], _, [], _).
 search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents) :-
     length(PQ, N),
     N > 0,
     [State | PQ2] = PQ,
-    % write(State), nl, nl,
+    % write("Visiting "), write(State), nl, nl,
     (
         (
             is_terminal(Puzzle, State),
@@ -101,12 +200,13 @@ search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents) :-
         )
     ).
     
-search_for_loop(Puzzle, Heuristic, State, [], PQ, PQ, Visited, Visited, Parents, Parents).
+search_for_loop(_, _, _, [], PQ, PQ, Visited, Visited, Parents, Parents).
 search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ, NextPQ, Visited, NextVisited, Parents, NextParents) :-
     [Action | RestActionSpace] = ActionSpace,
     observe(Puzzle, State, Action, NextState),
     ((
         not(member(NextState, Visited)),
+        write("Adding edge: "), write(State), write(" "), write(NextState), nl,
         append(Visited, [NextState], Visited2),
         append(Parents, [[NextState, State]], Parents2),
         insert(Heuristic, PQ, NextState, PQ1)
