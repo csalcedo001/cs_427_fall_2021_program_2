@@ -166,8 +166,23 @@ search(Puzzle, Heuristic, Start, Path) :-
     PQ = [Start],
     Visited = [Start],
     Parents = [],
-    search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents),
-    write(Path), nl.
+    catch(
+        (
+            search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents),
+            Error = none
+        ),
+        error(Error, _),
+        (
+            Error == resource_error(stack),
+            Path = [],
+            format('You runned out of memory, the stack is full!'),
+            nl
+        )
+    ),
+    (
+        Error == none,
+        write(Path), nl
+    ).
 
 % Auxiliary recursive search method
 search_recur(_, _, [], _, [], _).
@@ -206,7 +221,7 @@ search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ, NextPQ, Visited, Next
     observe(Puzzle, State, Action, NextState),
     ((
         not(member(NextState, Visited)),
-        write("Adding edge: "), write(State), write(" "), write(NextState), nl,
+        % write("Adding edge: "), write(State), write(" "), write(NextState), nl,
         append(Visited, [NextState], Visited2),
         append(Parents, [[NextState, State]], Parents2),
         insert(Heuristic, PQ, NextState, PQ1)
@@ -235,8 +250,8 @@ dfs_insert(_, PQ, State, NextPQ) :-
 
 best_fs_insert([Heur], PQ, State, NextPQ) :-
     % TODO: Implment insert
-    NextPQ = PQ.
+    append(PQ, [State], NextPQ).
 
 init_heuristic(bfs, [bfs, bfs_insert]).
 init_heuristic(dfs, [dfs, dfs_insert]).
-init_heuristic(best_fs, Heur, [best_fs, best_fs_insert, Heur]).
+init_heuristic(best_fs, [best_fs, best_fs_insert, Heur], Heur).
