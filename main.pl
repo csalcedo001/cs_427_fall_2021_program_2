@@ -1,5 +1,5 @@
 :- 
-    load_files(['vamp-wolf']).
+    load_files(['functions']).
 
 print_path([]).
 print_path([State | RestPath]) :-
