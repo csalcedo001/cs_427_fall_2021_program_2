@@ -7,10 +7,9 @@ print_path([State | RestPath]) :-
     print_path(RestPath).
 
 run(Puzzle, best_fs, Heuristic) :-
-    write("NOT IMPLEMENTED"), nl.
-    % init_heuristic(best_fs, H, Heuristic),
-    % search(Puzzle, H, Path),
-    % print_path(Path).
+    init_heuristic(best_fs, H, Heuristic),
+    search(Puzzle, H, Path),
+    print_path(Path).
 
 run(Puzzle, Method) :-
     init_heuristic(Method, H),

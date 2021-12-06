@@ -2,6 +2,24 @@
 get_parent(Child, [[Child, Parent] | _], Parent).
 get_parent(Child, [_ | RestParents], Parent) :- get_parent(Child, RestParents, Parent).
 
+% Flatten
+matrix_flatten(Matrix, List) :-
+    matrix_flatten_recur(Matrix, [], List).
+
+matrix_flatten_recur([], List, List).
+matrix_flatten_recur(Matrix, CurrList, NextList) :-
+    [Row | RestMatrix] = Matrix,
+    append(CurrList, Row, MidList),
+    matrix_flatten_recur(RestMatrix, MidList, NextList).
+
+% Factorial
+factorial(N, R) :- N < 1, R is 1.
+factorial(N, R) :-
+    N0 = N - 1,
+    factorial(N0, R0),
+    R is R0 * N.
+
+% Matrix Swap
 swap_x(Matrix, Y, Low, High, NextMatrix) :-
     swap_x_recur_j(Matrix, 0, 3, Y, Low, High, NextMatrix).
 
@@ -83,8 +101,7 @@ equivalent(vamp_wolf, StateA, StateB) :-
     StateA == StateB.
 
 is_terminal(vamp_wolf, State) :-
-    equivalent(vamp_wolf, State, [0, 0, 3, 3, east]);
-    equivalent(vamp_wolf, State, [0, 0, 3, 3, west]).
+    equivalent(vamp_wolf, State, [0, 0, 3, 3, east]).
 
 get_start(vamp_wolf, Start) :-
     Start = [3, 3, 0, 0, west].
@@ -129,12 +146,19 @@ action_space(sliding_tile, State, Actions) :-
 equivalent(sliding_tile, StateA, StateB) :-
     StateA == StateB.
 
+% TODO: Consider terminal states different position of empty tile.
 is_terminal(sliding_tile, State) :-
-    equivalent(sliding_tile, State, [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, _]]).
+    [Matrix, _] = State,
+    matrix_flatten(Matrix, List0),
+    delete(List0, 16, List1),
+    List1 == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].
+    % equivalent(sliding_tile, State, [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, _]]).
 
 get_start(sliding_tile, Start) :-
     Matrix = [[12, 1, 2, 15], [11, 6, 5, 8], [7, 10, 9, 4], [16, 13, 14, 3]],
     Start = [Matrix, [0, 0]].
+    % Matrix = [[1, 2, 3, 4], [5, 6, 7, 8], [16, 15, 14, 13], [12, 11, 10, 9]],
+    % Start = [Matrix, [0, 1]].
 
 observe(sliding_tile, State, Action, NextState) :-
     [Matrix, [X, Y]] = State,
@@ -154,8 +178,11 @@ observe(sliding_tile, State, Action, NextState) :-
 
 %%% Search method rules
 insert(Heuristic, PQ, State, PQNext) :-
+    % write("State: "), write(State), nl,
+    % write("PQ: "), write(PQ), nl,
     [_, HeurInsert | Params] = Heuristic,
     call(HeurInsert, Params, PQ, State, PQNext).
+    % write("PQNext: "), write(PQNext), nl, nl.
 
 % Main search method
 search(Puzzle, Heuristic, Path) :-
@@ -249,9 +276,92 @@ dfs_insert(_, PQ, State, NextPQ) :-
     append([State], PQ, NextPQ).
 
 best_fs_insert([Heur], PQ, State, NextPQ) :-
-    % TODO: Implment insert
-    append(PQ, [State], NextPQ).
+    % write("ENTERS"), nl,
+    sort_insert_recur(Heur, PQ, State, NextPQ).
+    % write("EXITS"), nl.
+
+sort_insert_recur(_, [], CurrState, [CurrState]).
+sort_insert_recur(Heur, PQ, CurrState, NextPQ) :-
+    [FrontState | RestPQ] = PQ,
+    call(Heur, CurrState, CurrCost),
+    call(Heur, FrontState, FrontCost),
+    (
+        (
+            CurrCost > FrontCost,
+            sort_insert_recur(Heur, RestPQ, CurrState, RestNextPQ),
+            NextPQ = [FrontState | RestNextPQ]
+        );
+        (
+            NextPQ = [CurrState, FrontState | RestPQ]
+        )
+    ).
 
 init_heuristic(bfs, [bfs, bfs_insert]).
 init_heuristic(dfs, [dfs, dfs_insert]).
 init_heuristic(best_fs, [best_fs, best_fs_insert, Heur], Heur).
+
+
+%%% Heuristics
+matrix_pos_dist(MatrixPos, Xi, Yi, Dist) :-
+    Xf is mod(MatrixPos, 4),
+    Yf is (MatrixPos - Xf) / 4,
+    Dist is abs(Xf - Xi) + abs(Yf - Yi).
+
+first_out_of_order(Matrix, Tile) :-
+    matrix_flatten(Matrix, List),
+    first_out_of_order_recur(List, 1, Tile).
+
+first_out_of_order_recur([], X, X).
+first_out_of_order_recur(List, X, Tile) :-
+    [Val | RestList] = List,
+    (
+        (
+            Val == X,
+            NextX is X + 1,
+            first_out_of_order_recur(RestList, NextX, Tile)
+        );
+        (
+            Tile is X
+        )
+    ).
+
+
+tile_cost(Tile, Xi, Yi, Cost) :-
+    Pos1 is Tile - 1,
+    Pos2 is Tile,
+    matrix_pos_dist(Pos1, Xi, Yi, Dist1),
+    matrix_pos_dist(Pos2, Xi, Yi, Dist2),
+    % Dist is min(Dist1, Dist2),
+    Dist is Dist1 + Dist2,
+    Cost is Dist.
+
+row_cost([], _, _, 0).
+row_cost(Row, CurrX, Y, Cost) :-
+    [Tile | RestRow] = Row,
+    tile_cost(Tile, CurrX, Y, TileCost),
+    NextX is CurrX + 1,
+    row_cost(RestRow, NextX, Y, RestCost),
+    Cost is TileCost + RestCost.
+
+matrix_cost([], _, 0).
+matrix_cost(Matrix, CurrY, Cost) :-
+    [Row | RestMatrix] = Matrix,
+    row_cost(Row, 0, CurrY, RowCost),
+    NextY is CurrY + 1,
+    matrix_cost(RestMatrix, NextY, RestCost),
+    Cost is RowCost + RestCost.
+
+heur_sliding_tile(State, Cost) :-
+    [Matrix, _] = State,
+    matrix_cost(Matrix, 0, Cost0),
+    % Cost is (Cost0 - 15) / 2,
+
+    first_out_of_order(Matrix, FocusTile),
+    % V0 is 10 - FocusTile,
+    % factorial(V0, V1),
+    % Weight = 512 * V1,
+    % Cost is Weight * Cost0,
+    Cost is Cost0 + 512 * max(9 - FocusTile, 0),
+    write(State), nl,
+    % write(FocusTile), nl,
+    write("COST: "), write(Cost), nl.
