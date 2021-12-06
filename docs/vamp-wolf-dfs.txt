@@ -1,0 +1,1 @@
+The vamp_wolf enfironment has a few number of states which can be traversed easily with DFS, so the approach rapidly finds a solution by going through any of the (at most) 5 possible actions to take from a given state. Any dead end in the search is traversed without exhausting the resources of the computer.

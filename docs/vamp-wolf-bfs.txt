@@ -1,0 +1,1 @@
+BFS searches layer by layer in this environment that has a depth of at most 10 levels, and a branching factor of at most 5, but usually less than 3 after deleting invalid stated. With a total number of 4 * 4 * 2 = 32 states (counting invalid states) the solution can be found quickly.

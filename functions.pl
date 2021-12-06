@@ -261,7 +261,11 @@ dfs_insert(_, PQ, State, NextPQ) :-
 hfs_insert([Heur], PQ, State, NextPQ) :-
     sort_insert_recur(Heur, PQ, State, NextPQ).
 
-sort_insert_recur(_, [], CurrState, [CurrState]).
+sort_insert_recur(Heur, [], CurrState, [CurrState]) :-
+    call(Heur, CurrState, CurrCost),
+    write("State: "), write(CurrState), nl,
+    write("Cost: "), write(CurrCost), nl, nl.
+
 sort_insert_recur(Heur, PQ, CurrState, NextPQ) :-
     [FrontState | RestPQ] = PQ,
     call(Heur, CurrState, CurrCost),
@@ -288,7 +292,7 @@ init_heuristic(hfs, [hfs, hfs_insert, Heur], Heur).
 % vamp_wolf Heuristic
 heur_vamp_wolf(State, Cost) :-
     [WW, VW, WE, VE, B] = State,
-    Cost is VW.
+    Cost is WW.
 
 % sliding_tile Heuristic
 heur_sliding_tile(State, Cost) :-
