@@ -178,11 +178,8 @@ observe(sliding_tile, State, Action, NextState) :-
 
 %%% Search method rules
 insert(Heuristic, PQ, State, PQNext) :-
-    % write("State: "), write(State), nl,
-    % write("PQ: "), write(PQ), nl,
     [_, HeurInsert | Params] = Heuristic,
     call(HeurInsert, Params, PQ, State, PQNext).
-    % write("PQNext: "), write(PQNext), nl, nl.
 
 % Main search method
 search(Puzzle, Heuristic, Path) :-
@@ -217,7 +214,6 @@ search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents) :-
     length(PQ, N),
     N > 0,
     [State | PQ2] = PQ,
-    % write("Visiting "), write(State), nl, nl,
     (
         (
             is_terminal(Puzzle, State),
@@ -227,8 +223,6 @@ search_recur(Puzzle, Heuristic, PQ, Visited, Path, Parents) :-
             action_space(Puzzle, State, ActionSpace),
             search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ2, PQ3, Visited, Visited2, Parents, Parents2),
             search_recur(Puzzle, Heuristic, PQ3, Visited2, PrevPath, Parents2),
-            % write(PQ3), write(" "),
-            % nl,
             (
                 (
                     ((length(PrevPath, M), M == 0) ; 
@@ -248,7 +242,6 @@ search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ, NextPQ, Visited, Next
     observe(Puzzle, State, Action, NextState),
     ((
         not(member(NextState, Visited)),
-        % write("Adding edge: "), write(State), write(" "), write(NextState), nl,
         append(Visited, [NextState], Visited2),
         append(Parents, [[NextState, State]], Parents2),
         insert(Heuristic, PQ, NextState, PQ1)
@@ -257,17 +250,7 @@ search_for_loop(Puzzle, Heuristic, State, ActionSpace, PQ, NextPQ, Visited, Next
         PQ1 = PQ,
         Parents2 = Parents
     )),
-    % write(State), write(" "),
-    % write(Action), write(" "),
-    % write(Visited), write(" "),
-    % write(RestActionSpace), write(" "),
-    % write(PQ), write(" "),
-    % write(PQ1), write(" "),
-    % write(Parents), write(" "),
-    % nl,
-    % nl,
     search_for_loop(Puzzle, Heuristic, State, RestActionSpace, PQ1, NextPQ, Visited2, NextVisited, Parents2, NextParents).
-    % write(NextPQ), nl.
 
 bfs_insert(_, PQ, State, NextPQ) :-
     append(PQ, [State], NextPQ).
@@ -275,10 +258,8 @@ bfs_insert(_, PQ, State, NextPQ) :-
 dfs_insert(_, PQ, State, NextPQ) :-
     append([State], PQ, NextPQ).
 
-best_fs_insert([Heur], PQ, State, NextPQ) :-
-    % write("ENTERS"), nl,
+hfs_insert([Heur], PQ, State, NextPQ) :-
     sort_insert_recur(Heur, PQ, State, NextPQ).
-    % write("EXITS"), nl.
 
 sort_insert_recur(_, [], CurrState, [CurrState]).
 sort_insert_recur(Heur, PQ, CurrState, NextPQ) :-
@@ -292,56 +273,27 @@ sort_insert_recur(Heur, PQ, CurrState, NextPQ) :-
             NextPQ = [FrontState | RestNextPQ]
         );
         (
-            NextPQ = [CurrState, FrontState | RestPQ]
+            NextPQ = [CurrState, FrontState | RestPQ],
+            write("State: "), write(CurrState), nl,
+            write("Cost: "), write(CurrCost), nl, nl
         )
     ).
 
 init_heuristic(bfs, [bfs, bfs_insert]).
 init_heuristic(dfs, [dfs, dfs_insert]).
-init_heuristic(best_fs, [best_fs, best_fs_insert, Heur], Heur).
+init_heuristic(hfs, [hfs, hfs_insert, Heur], Heur).
 
 
 %%% Heuristics
-matrix_pos_dist(MatrixPos, Xi, Yi, Dist) :-
-    Xf is mod(MatrixPos, 4),
-    Yf is (MatrixPos - Xf) / 4,
-    Dist is abs(Xf - Xi) + abs(Yf - Yi).
+% vamp_wolf Heuristic
+heur_vamp_wolf(State, Cost) :-
+    [WW, VW, WE, VE, B] = State,
+    Cost is VW.
 
-first_out_of_order(Matrix, Tile) :-
-    matrix_flatten(Matrix, List),
-    first_out_of_order_recur(List, 1, Tile).
-
-first_out_of_order_recur([], X, X).
-first_out_of_order_recur(List, X, Tile) :-
-    [Val | RestList] = List,
-    (
-        (
-            Val == X,
-            NextX is X + 1,
-            first_out_of_order_recur(RestList, NextX, Tile)
-        );
-        (
-            Tile is X
-        )
-    ).
-
-
-tile_cost(Tile, Xi, Yi, Cost) :-
-    Pos1 is Tile - 1,
-    Pos2 is Tile,
-    matrix_pos_dist(Pos1, Xi, Yi, Dist1),
-    matrix_pos_dist(Pos2, Xi, Yi, Dist2),
-    % Dist is min(Dist1, Dist2),
-    Dist is Dist1 + Dist2,
-    Cost is Dist.
-
-row_cost([], _, _, 0).
-row_cost(Row, CurrX, Y, Cost) :-
-    [Tile | RestRow] = Row,
-    tile_cost(Tile, CurrX, Y, TileCost),
-    NextX is CurrX + 1,
-    row_cost(RestRow, NextX, Y, RestCost),
-    Cost is TileCost + RestCost.
+% sliding_tile Heuristic
+heur_sliding_tile(State, Cost) :-
+    [Matrix, BlankPos] = State,
+    matrix_cost(Matrix, 0, Cost).
 
 matrix_cost([], _, 0).
 matrix_cost(Matrix, CurrY, Cost) :-
@@ -351,17 +303,22 @@ matrix_cost(Matrix, CurrY, Cost) :-
     matrix_cost(RestMatrix, NextY, RestCost),
     Cost is RowCost + RestCost.
 
-heur_sliding_tile(State, Cost) :-
-    [Matrix, _] = State,
-    matrix_cost(Matrix, 0, Cost0),
-    % Cost is (Cost0 - 15) / 2,
+row_cost([], _, _, 0).
+row_cost(Row, CurrX, Y, Cost) :-
+    [Tile | RestRow] = Row,
+    tile_cost(Tile, CurrX, Y, TileCost),
+    NextX is CurrX + 1,
+    row_cost(RestRow, NextX, Y, RestCost),
+    Cost is TileCost + RestCost.
 
-    first_out_of_order(Matrix, FocusTile),
-    % V0 is 10 - FocusTile,
-    % factorial(V0, V1),
-    % Weight = 512 * V1,
-    % Cost is Weight * Cost0,
-    Cost is Cost0 + 512 * max(9 - FocusTile, 0),
-    write(State), nl,
-    % write(FocusTile), nl,
-    write("COST: "), write(Cost), nl.
+tile_cost(Tile, Xi, Yi, Cost) :-
+    Pos1 is Tile - 1,
+    Pos2 is Tile,
+    matrix_pos_dist(Pos1, Xi, Yi, Dist1),
+    matrix_pos_dist(Pos2, Xi, Yi, Dist2),
+    Cost is min(Dist1, Dist2).
+
+matrix_pos_dist(MatrixPos, Xi, Yi, Dist) :-
+    Xf is mod(MatrixPos, 4),
+    Yf is (MatrixPos - Xf) / 4,
+    Dist is abs(Xf - Xi) + abs(Yf - Yi).
